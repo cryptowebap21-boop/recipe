@@ -1,0 +1,153 @@
+You are to create a complete, production-ready full-stack web app named **HumanizeAI**.  
+Stack: Node.js (Express) backend + React (Vite) frontend + Tailwind CSS + Framer Motion.
+
+The project already mostly exists, but this prompt should **refine and rebuild all remaining areas** with the following requirements and fixes.
+
+──────────────────────────────
+🏗  CORE FEATURES
+──────────────────────────────
+1. **AI Detector**
+   - User pastes text → backend prepends AI_CHECKER_SCRIPT → sends to DeepSeek v3 through Router API → returns { ai_probability, confidence, reasoning }.
+2. **Humanizer**
+   - User pastes text (supports 5 000+ words) → backend prepends HUMANIZER_SCRIPT → sends to DeepSeek v3 → returns improved natural rewrite.
+   - Supports long texts via chunking and sequential calls with progress feedback.
+3. Backend calls always go through Router URL in `.env`:
+
+
+These are private server-side variables—never exposed to the client.
+
+──────────────────────────────
+🎨  FRONTEND POLISH & UX FIXES
+──────────────────────────────
+**Text Input Area**
+- Remove excessive white glow and replace with a subtle inner shadow or faint 5 % white overlay.  
+- Ensure high contrast between text and background (text visible even on light themes).  
+- Rounded corners (2xl), soft border (#d1d1d1 on light mode, #333 on dark).  
+- Maintain smooth focus ring (Tailwind `focus:ring-2 focus:ring-blue-400 focus:ring-offset-2`).  
+- Placeholder text in neutral gray.  
+- Show live word count under the box.
+
+**General UI/UX**
+- Consistent spacing grid, fewer visual distractions.
+- Smooth transitions between tabs (“Check AI” / “Humanize”).
+- Animated loader (Framer Motion dots or shimmer) that appears immediately after submit.
+- Disable action buttons while request pending; add a “Cancel” button (AbortController).
+- Add progress indicator when processing long texts (chunked calls).
+- All animations use transform/opacity (GPU-accelerated); avoid layout thrash.
+- Include reduced-motion fallback for accessibility.
+- Responsive: mobile → stacked layout; desktop → split-pane for results.
+
+──────────────────────────────
+🧠  BACKEND FIXES & IMPROVEMENTS
+──────────────────────────────
+- Express server with:
+```js
+app.use(express.json({limit:'100mb'}));
+app.use(express.urlencoded({limit:'100mb',extended:true}));
+app.use(cors({origin:process.env.CLIENT_URL||'*'}));
+
+Add helper chunkText() and sequential router calls to handle long inputs.
+
+Use 120 s timeout per router request; return friendly error messages.
+
+Standard error shape: { ok:false, error:{code,message} }.
+
+Mock mode when no API key: returns fake data for local testing.
+
+Logging (console + simple rotating file).
+
+──────────────────────────────
+ 🔧 FOOTER & BRANDING
+ ──────────────────────────────
+Remove all unused footer sections (blog, resources, etc.).
+
+Keep only:
+
+Branding block: “© 2025 HumanizeAI – Making Texts Sound Real.”
+
+Link: “Privacy Policy” → navigates to /privacy.
+
+Footer background: semi-transparent glass panel, soft shadow.
+
+Centered layout on mobile.
+
+──────────────────────────────
+ 📄 PRIVACY POLICY PAGE
+ ──────────────────────────────
+ Generate /privacy route with clean layout:
+Title: “Privacy Policy”
+
+Subtitle: “HumanizeAI cares about your privacy.”
+
+Body (example text – Replit may expand it):
+
+
+ We process your text only to provide Humanize and AI Detection results.
+ We don’t permanently store user inputs or share them with third parties.
+ API communications are secured via HTTPS.
+ You can contact us at support@humanizeai.io for privacy inquiries.
+
+
+Include brand accent colors and subtle fade-in animation.
+
+──────────────────────────────
+ ⚙️ DEPLOYMENT & DEV EXPERIENCE
+ ──────────────────────────────
+Single root package.json with scripts:
+
+ "scripts": {
+  "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+  "dev:server": "nodemon server/index.js",
+  "dev:client": "npm --prefix client run dev",
+  "start": "node server/index.js"
+}
+
+README must document:
+
+How to set .env or Replit Secrets (ROUTER_API_KEY, ROUTER_API_URL).
+
+How to run locally (npm install, npm run dev).
+
+How to deploy to Replit / Google Hosting.
+
+──────────────────────────────
+ 💅 ADDITIONAL POLISH
+ ──────────────────────────────
+Subtle gradient background (e.g., from #0f2027 → #203a43 → #2c5364) with blurred glow accents.
+
+Framer Motion transitions for result cards.
+
+Diff viewer (lazy-loaded) with word-highlight toggle.
+
+Accessibility: ARIA labels, focus states, and aria-live for status updates.
+
+Maintain fast bundle (<1 MB gzipped) via code-splitting.
+
+Add tests for both endpoints using Jest + Supertest.
+
+──────────────────────────────
+ 📦 DELIVERABLE
+ ──────────────────────────────
+ Output a full file tree and generate all necessary files:
+/server (index.js, scripts.js, routes)
+
+/client (Vite React app)
+
+/client/src/pages/Privacy.jsx
+
+/client/src/components (InputArea, Loader, ResultCard, Footer, etc.)
+
+tailwind.config.js, vite.config.js, package.json, .env.sample, README.md
+
+At the end of generation, print concise run instructions:
+npm install
+
+npm run dev
+
+Open http://localhost:5173
+
+Set your secrets in Replit or .env
+
+Deploy following README.
+
+Now generate the complete, cleaned, deploy-ready project.

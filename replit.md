@@ -22,23 +22,33 @@ Preferred communication style: Simple, everyday language.
 
 **Design System:**
 - Gen-Z aesthetic with glassmorphism effects (backdrop-blur, transparency)
-- Gradient backgrounds using primary (purple) to secondary (pink) color scheme
+- Enhanced gradient background (#0f2027 → #203a43 → #2c5364)
 - Neon accent colors and rounded corners throughout
 - Dark theme optimized with custom CSS variables for theming
 - Responsive design supporting mobile, tablet, and desktop viewports
+- Refined textareas with subtle shadows (removed white glow, #333 borders)
+- Simplified glass-panel footer with copyright and privacy link
+- Framer Motion animations for smooth transitions and loaders
+- Accessibility features: ARIA labels, reduced-motion support, proper focus states
 
 **Component Structure:**
 - Page-based routing using wouter (lightweight router)
 - Reusable UI components in `/client/src/components/ui/`
-- Feature components (AIDetector, Humanizer) with isolated state
+- Feature components (AIDetector, Humanizer) with isolated state and cancel support
 - Landing page sections (Hero, Features, HowItWorks) for marketing content
 - Tab-based interface for switching between detector and humanizer tools
+- Privacy Policy page at `/privacy` route with comprehensive policy details
+- Animated Framer Motion loaders (bouncing dots for detector, scaling for humanizer)
+- Real-time progress indicators for chunked text processing
 
 **State Management:**
 - Local component state using React hooks (useState)
 - Server state managed by TanStack Query with custom apiRequest wrapper
 - Form validation using Zod schemas shared between frontend and backend
 - Toast notifications for user feedback via shadcn/ui toast system
+- AbortController integration for cancellable operations
+- Progress tracking for long-text processing (>2000 words)
+- Robust error message extraction from standardized API envelope
 
 ### Backend Architecture
 
@@ -52,9 +62,15 @@ Preferred communication style: Simple, everyday language.
 - RESTful endpoints:
   - `POST /api/check` - AI detection analysis
   - `POST /api/humanize` - Text humanization
-- Request body size limit set to 50MB to support large documents (5000+ words)
+  - `GET /api/health` - Health check endpoint
+- Request body size limit set to 100MB to support very large documents
+- Standardized response envelope:
+  - Success: `{ok: true, data: {...}}`
+  - Error: `{ok: false, error: {code: string, message: string}}`
 - Shared Zod schemas between frontend/backend for consistent validation
 - Mock responses available in development mode when Router API is not configured
+- 120-second timeout with AbortController support for long-running operations
+- Server-side chunking for texts over 2000 words (sequential processing)
 
 **AI Integration:**
 - DeepSeek v3 accessed through Router API endpoint
@@ -69,6 +85,8 @@ Preferred communication style: Simple, everyday language.
 - Static file serving from built frontend in production
 - Request/response logging middleware with truncation for readability
 - Runtime error overlay for development debugging
+- Production-safe global error handler that logs errors without crashing server
+- Robust error handling with fallback to user-friendly messages
 
 **Data Storage:**
 - In-memory session storage using Map for temporary result caching

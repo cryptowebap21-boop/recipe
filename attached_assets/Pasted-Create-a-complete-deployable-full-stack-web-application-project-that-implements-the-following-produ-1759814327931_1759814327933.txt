@@ -1,0 +1,138 @@
+Create a complete, deployable full-stack web application project that implements the following product: an "AI Detector" + "Humanizer" website. The project must be ready to run locally and deploy to Replit/Google Hosting without missing dependencies. Produce a file tree and generate all files. Use Node.js for the backend and React for the frontend (Vite + React recommended). Use Tailwind CSS for styling. Use Framer Motion for animations. Use no external UI frameworks beyond Tailwind and Framer Motion, but include shadcn style structure if helpful.
+
+High-level product requirements:
+- Two main features:
+  1) **AI Detector**: User pastes text -> backend prepends the saved "AI Checker Script" -> sends to DeepSeek v3 via Router API -> returns: ai probability (0-100), confidence ("Very confident"/"Maybe"/"Not confident"), and short reasoning. Return JSON to frontend and display visually.
+  2) **Humanizer**: User pastes text (support 5k+ words) -> backend prepends saved "Humanizer Script" -> sends to DeepSeek v3 via Router API -> returns rewritten text. The Humanizer improves naturalness and readability while preserving meaning, not to hide authorship. Display result and allow copy/download.
+
+- Backend details:
+  - Node.js + Express (or Fastify if you prefer performance). Must include robust request size limits to accept large text (at least 5000 words), e.g., body parser limit 50MB.
+  - Provide API endpoints: POST /api/check (for AI Detector), POST /api/humanize (for Humanizer).
+  - Store the two scripts in a server-side config file `/server/scripts.js` and dynamically prepend them to user input before calling DeepSeek.
+  - Use environment variables or a one-time interactive setup to collect and store Router API information:
+      - ROUTER_API_KEY (required)
+      - ROUTER_API_URL (default to a configurable variable; make clear how to replace with actual Router URL)
+  - The backend must always call DeepSeek v3 through the Router endpoint specified by ROUTER_API_URL using the ROUTER_API_KEY for Authorization Bearer token.
+  - Implement graceful error handling, input validation, rate limiting (basic), and logging.
+  - Implement CORS so the frontend can call the backend.
+  - Provide a CLI setup script `setup.sh` or `node setup.js` that prompts the user once for ROUTER_API_KEY and ROUTER_API_URL and writes a `.env` file (and instructs how to set Replit secrets). This script must not print the key afterwards.
+
+- Frontend details:
+  - React + Vite project.
+  - Beautiful, modern, Gen-Z style UI: gradient backgrounds, glassmorphism cards, rounded edges, bold typography, neon accent, smooth micro-animations.
+  - Use Tailwind CSS and Framer Motion for animations.
+  - Provide: landing page with hero, a main app area with two tabs or toggle buttons: "Check AI" and "Humanize".
+  - Text input area should accept pasted text and show approximate word count; support dragging/pasting files (optional).
+  - Show a nice aesthetic loader/animation while awaiting backend response, with "magic-like" transitions for results appearing.
+  - Present AI Detector results as a card: big ai probability % (animated), confidence label, and expandable "Reasoning" area.
+  - Present Humanizer results side-by-side or in a swap view with original text and rewritten text, with diff/highlight toggle (show small diffs).
+  - Provide copy and download (txt) buttons for outputs.
+  - Make everything responsive and ready for Google Hosting.
+  - No login required.
+
+- Security & Robustness:
+  - Sanitize user input before sending to DeepSeek to avoid dangerous content in logs.
+  - Do not store user inputs permanently. Provide option to store session results locally only.
+  - Use HTTPS when deployed (note in README how to set up).
+
+- Code quality:
+  - Clean, well-structured, and commented production-ready code.
+  - Include a README with setup & deployment steps including how to set Replit secrets or environment variables.
+  - Include start scripts: `dev` and `start` for server and client; a single root `start` script to run fullstack locally.
+
+- Extra UX polish:
+  - Smooth page transitions, gliding modals, animated probability meter, micro-interactions.
+  - Aesthetic loading screens and subtle sound effect toggle (no sounds on by default).
+  - Accessibility: keyboard focus states and ARIA labels for major interactive elements.
+
+Important: The backend must include the two scripts exactly as provided below (sanitized). Integrate them in `/server/scripts.js` and ensure the server code dynamically prepends them before sending to the Router API.
+
+Use the following sanitized scripts (DO NOT attempt to optimize these for evasion of detection; the humanizer script is explicitly limited to improving naturalness/readability and preserving meaning):
+
+=====
+/server/scripts.js content (exact, include as-is):
+module.exports = {
+  HUMANIZER_SCRIPT: `Humanizer Script:
+Rewrite the following text so it appears written by a human, not an AI system. 
+Important rules:
+- Keep at least 97% of the original words and meaning the same.
+- Do NOT heavily rewrite or polish the text. Keep it natural and close to the source.
+
+Instead, subtly add small imperfections that make it read like authentic human writing:
+- Occasionally drop or misplace punctuation (like a missing period, an odd comma, or a misplaced exclamation mark).
+- Add very few small spelling mistakes (1–2 per 150 words max). Keep them realistic, not distracting.
+- Replace a few words with near synonyms, casual forms, or slightly messy alternatives.
+- Vary sentence rhythm: sometimes merge two short sentences, sometimes split a long one.
+- Randomly add contractions (don’t, it’s, I’m) or informal words (kinda, gonna).
+- Start a few sentences with “And” or “But” or “Because.”
+- Rarely insert a natural filler phrase (e.g. “you know,” “I mean,”) if it fits.
+- Insert occasional ellipses (…) or double spaces between words, but sparingly.
+- Slightly vary tone across sentences (a little casual here, a little formal there).
+
+Final output must be highly readable, nearly identical to the original (97%+ same), and around 99% undetectable by AI detectors. 
+Here is the text to humanize:
+
+[USER TEXT]
+
+
+Input: [USER_TEXT]`,
+  AI_CHECKER_SCRIPT: `AI Checker Script:
+Analyze the following text and estimate the probability that it was written by AI. Evaluate based on:
+- Sentence structure and rhythm
+- Word choice and repetitiveness
+- Predictability and lack of human-like imperfections
+- Grammar consistency, tone, and overall fluency
+- Signs of over-polished or generic phrasing common to AI writing
+
+Return your analysis in the following structured format (JSON):
+{
+  "ai_probability": [number between 0–100],
+  "confidence": "[Very confident / Maybe / Not confident]",
+  "reasoning": "[1–3 sentences explaining why you assigned that probability]"
+}
+
+Rules for confidence:
+- 0–39% → "Not confident"
+- 40–79% → "Maybe"
+- 80–100% → "Very confident"
+
+Input: [USER_TEXT]`
+};
+=====
+
+Implementation details for server -> Router API call:
+- The server endpoints must do this:
+  1. Receive { text: string }.
+  2. Prepend the appropriate script from /server/scripts.js to the user text (replace [USER_TEXT] with the user content).
+  3. Make a POST request to the Router API URL defined in environment variable ROUTER_API_URL. Send a JSON payload such as:
+     {
+       "model": "deepseek-r3",
+       "input": "<full prompt with script + user text>"
+     }
+     (If the Router expects a different shape, code should be written so it's easy to alter the payload.)
+  4. Use Authorization: Bearer <ROUTER_API_KEY> header.
+  5. Parse the Router / DeepSeek response and return clean JSON to the frontend. For the Humanizer endpoint, return { rewrittenText: "...", meta: {...} }. For the Checker endpoint, return { ai_probability: XX, confidence: "...", reasoning: "..." }.
+- Make the Router URL and API key configurable through .env or interactive setup. Default to read ROUTER_API_URL and ROUTER_API_KEY from process.env.
+
+Additional implementation notes:
+- Accept and handle large inputs: configure express.json({ limit: '50mb' }) and any client-side upload chunking if necessary.
+- Implement a backend response timeout and a helpful error message to the frontend if the Router call fails.
+- Include unit tests (basic) for endpoints (optional but preferred).
+- Include a sample environment file `.env.sample`.
+
+UI mock/data:
+- In development mode, when ROUTER_API_KEY is missing, provide a dev-mode mock response generator (simulate reasonable Detector and Humanizer outputs) so frontend is fully testable offline.
+
+Deliverable:
+- Generate all files needed to run (`package.json`, server files, client files, tailwind config, vite config, README, setup script, and any assets).
+- Ensure `npm install` then `npm run dev` will run both server and client concurrently (use concurrently or a root script).
+- Provide instructions in README on how to set Replit secrets or run the `node setup.js` script to store ROUTER_API_KEY and ROUTER_API_URL.
+
+Make the code: clean, modular, and ready for deployment. Prioritize developer ergonomics: clear file separation, small functions, well-named variables, and comments that explain integration points.
+
+Finally, after generating the project files, print concise instructions at the end of the generation output:
+1. How to run locally (install, setup, start).
+2. How to set Router API key and Router API URL (via setup script or Replit secrets).
+3. How to deploy on Replit/Google Hosting.
+
+That's it. Build it now.

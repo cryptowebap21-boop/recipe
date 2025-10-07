@@ -118,7 +118,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     if (clientData.count >= RATE_LIMIT_MAX) {
-      return res.status(429).json({ error: 'Too many requests, please try again later.' });
+      return res.status(429).json({ 
+        ok: false, 
+        error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests, please try again later.' } 
+      });
     }
     
     clientData.count++;
@@ -149,7 +152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!process.env.ROUTER_API_KEY) {
         console.log('Dev mode: Using mock AI detector response');
         const mockResponse = createMockAIDetectorResponse(text);
-        return res.json(mockResponse);
+        return res.json({ ok: true, data: mockResponse });
       }
       
       // Prepare the prompt with the AI checker script
@@ -174,7 +177,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         result = createMockAIDetectorResponse(text);
       }
       
-      res.json(result);
+      res.json({ ok: true, data: result });
     } catch (error) {
       console.error('Error in /api/check:', error);
       if (error instanceof z.ZodError) {
@@ -199,7 +202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!process.env.ROUTER_API_KEY) {
         console.log('Dev mode: Using mock humanizer response');
         const mockResponse = createMockHumanizerResponse(text);
-        return res.json(mockResponse);
+        return res.json({ ok: true, data: mockResponse });
       }
       
       const wordCount = text.split(' ').length;
@@ -236,7 +239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         };
         
-        return res.json(result);
+        return res.json({ ok: true, data: result });
       }
       
       // For shorter texts, process normally
@@ -253,7 +256,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
       
-      res.json(result);
+      res.json({ ok: true, data: result });
     } catch (error) {
       console.error('Error in /api/humanize:', error);
       if (error instanceof z.ZodError) {
@@ -272,10 +275,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint
   app.get('/api/health', (req, res) => {
     res.json({ 
-      status: 'ok', 
-      timestamp: new Date().toISOString(),
-      hasApiKey: !!process.env.ROUTER_API_KEY,
-      devMode: !process.env.ROUTER_API_KEY
+      ok: true,
+      data: {
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        hasApiKey: !!process.env.ROUTER_API_KEY,
+        devMode: !process.env.ROUTER_API_KEY
+      }
     });
   });
 

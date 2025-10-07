@@ -29,7 +29,8 @@ export default function AIDetector() {
       setAbortController(controller);
       
       const response = await apiRequest("POST", "/api/check", data, controller.signal);
-      return await response.json() as AIDetectorResponse;
+      const result = await response.json();
+      return result.data as AIDetectorResponse;
     },
     onSuccess: (data) => {
       setResult(data);

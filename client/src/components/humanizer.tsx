@@ -31,7 +31,8 @@ export default function Humanizer() {
       setProgress(0);
       
       const response = await apiRequest("POST", "/api/humanize", data, controller.signal);
-      return await response.json() as HumanizerResponse;
+      const result = await response.json();
+      return result.data as HumanizerResponse;
     },
     onSuccess: (data) => {
       setResult(data);

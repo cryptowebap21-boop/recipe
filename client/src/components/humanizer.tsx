@@ -16,17 +16,26 @@ export default function Humanizer() {
   const [result, setResult] = useState<HumanizerResponse | null>(null);
   const [showDiff, setShowDiff] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [progress, setProgress] = useState(0);
   const { toast } = useToast();
 
   const wordCount = text.trim().split(/\s+/).filter(word => word.length > 0).length;
+  const isLongText = wordCount > 2000;
 
   const humanizeMutation = useMutation({
     mutationFn: async (data: HumanizerRequest) => {
-      const response = await apiRequest("POST", "/api/humanize", data);
+      const controller = new AbortController();
+      setAbortController(controller);
+      setProgress(0);
+      
+      const response = await apiRequest("POST", "/api/humanize", data, controller.signal);
       return await response.json() as HumanizerResponse;
     },
     onSuccess: (data) => {
       setResult(data);
+      setAbortController(null);
+      setProgress(100);
       // Save to history
       historyStorage.add({
         type: 'humanizer',
@@ -34,12 +43,16 @@ export default function Humanizer() {
         output: data
       });
     },
-    onError: (error) => {
-      toast({
-        title: "Humanization Failed",
-        description: error.message,
-        variant: "destructive",
-      });
+    onError: (error: any) => {
+      setAbortController(null);
+      setProgress(0);
+      if (error.name !== 'AbortError') {
+        toast({
+          title: "Humanization Failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -53,6 +66,18 @@ export default function Humanizer() {
       return;
     }
     humanizeMutation.mutate({ text: text.trim() });
+  };
+
+  const handleCancel = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+      setProgress(0);
+      toast({
+        title: "Cancelled",
+        description: "Humanization was cancelled.",
+      });
+    }
   };
 
   const handleCopy = async () => {
@@ -167,26 +192,48 @@ export default function Humanizer() {
           <Textarea 
             value={text}
             onChange={(e) => setText(e.target.value)}
-            className="min-h-64 bg-background/50 border-border/50 focus:border-primary/50 resize-none" 
+            className="min-h-64 bg-background/50 rounded-2xl border border-[#333] dark:border-[#333] focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 resize-none placeholder:text-gray-500" 
             placeholder="Paste your text here to make it sound more natural and human-like..."
             data-testid="input-text-humanize"
+            aria-label="Text to humanize"
           />
           
           <div className="flex items-center justify-between mt-4">
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-              <Upload className="w-4 h-4 mr-2" />
-              Upload File
-            </Button>
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                <Upload className="w-4 h-4 mr-2" />
+                Upload File
+              </Button>
+              {isLongText && (
+                <span className="text-xs text-amber-500" role="alert">
+                  Long text detected - will be processed in chunks
+                </span>
+              )}
+            </div>
             
-            <Button 
-              onClick={handleHumanize}
-              disabled={humanizeMutation.isPending || !text.trim()}
-              className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
-              data-testid="button-humanize"
-            >
-              {humanizeMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Humanize Text
-            </Button>
+            <div className="flex gap-2">
+              {humanizeMutation.isPending && (
+                <Button 
+                  onClick={handleCancel}
+                  variant="outline"
+                  size="default"
+                  data-testid="button-cancel-humanize"
+                  aria-label="Cancel humanization"
+                >
+                  Cancel
+                </Button>
+              )}
+              <Button 
+                onClick={handleHumanize}
+                disabled={humanizeMutation.isPending || !text.trim()}
+                className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
+                data-testid="button-humanize"
+                aria-label="Humanize text"
+              >
+                {humanizeMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Humanize Text
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -199,18 +246,35 @@ export default function Humanizer() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
+            role="status"
+            aria-live="polite"
           >
             <Card className="bg-card/50 backdrop-blur-sm border-border/50">
               <CardContent className="p-12 text-center">
-                <div className="inline-block">
+                <div className="flex justify-center gap-2 mb-4">
                   <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                  >
-                    <Loader2 className="w-16 h-16 text-secondary" />
-                  </motion.div>
+                    className="w-3 h-3 bg-secondary rounded-full"
+                    animate={{ scale: [1, 1.5, 1] }}
+                    transition={{ duration: 0.8, repeat: Infinity, delay: 0 }}
+                  />
+                  <motion.div
+                    className="w-3 h-3 bg-secondary rounded-full"
+                    animate={{ scale: [1, 1.5, 1] }}
+                    transition={{ duration: 0.8, repeat: Infinity, delay: 0.2 }}
+                  />
+                  <motion.div
+                    className="w-3 h-3 bg-secondary rounded-full"
+                    animate={{ scale: [1, 1.5, 1] }}
+                    transition={{ duration: 0.8, repeat: Infinity, delay: 0.4 }}
+                  />
                 </div>
                 <p className="text-lg text-muted-foreground mt-4">Humanizing your text...</p>
+                {isLongText && (
+                  <div className="mt-4 w-full max-w-xs mx-auto" aria-label="Processing progress">
+                    <Progress value={progress} className="h-2" />
+                    <p className="text-sm text-muted-foreground mt-2">Processing long text...</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>

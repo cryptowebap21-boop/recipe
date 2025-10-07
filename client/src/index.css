@@ -60,7 +60,8 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', sans-serif;
-    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(250, 15%, 8%) 100%);
+    background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+    background-attachment: fixed;
     min-height: 100vh;
   }
 }
@@ -135,12 +136,26 @@
   @apply bg-muted-foreground opacity-50;
 }
 
-/* Smooth focus transitions */
+/* Smooth focus transitions with subtle inner shadow */
 textarea:focus, 
 input:focus {
   outline: none;
   border-color: hsl(var(--primary));
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.4), inset 0 2px 4px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* Remove excessive white glow - add subtle inner shadow */
+textarea {
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Tab indicator animation */

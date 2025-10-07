@@ -18,17 +18,22 @@ export default function AIDetector() {
   const [result, setResult] = useState<AIDetectorResponse | null>(null);
   const [reasoningOpen, setReasoningOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
   const { toast } = useToast();
 
   const wordCount = text.trim().split(/\s+/).filter(word => word.length > 0).length;
 
   const analyzeMutation = useMutation({
     mutationFn: async (data: AIDetectorRequest) => {
-      const response = await apiRequest("POST", "/api/check", data);
+      const controller = new AbortController();
+      setAbortController(controller);
+      
+      const response = await apiRequest("POST", "/api/check", data, controller.signal);
       return await response.json() as AIDetectorResponse;
     },
     onSuccess: (data) => {
       setResult(data);
+      setAbortController(null);
       // Save to history
       historyStorage.add({
         type: 'detector',
@@ -36,12 +41,15 @@ export default function AIDetector() {
         output: data
       });
     },
-    onError: (error) => {
-      toast({
-        title: "Analysis Failed",
-        description: error.message,
-        variant: "destructive",
-      });
+    onError: (error: any) => {
+      setAbortController(null);
+      if (error.name !== 'AbortError') {
+        toast({
+          title: "Analysis Failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -55,6 +63,17 @@ export default function AIDetector() {
       return;
     }
     analyzeMutation.mutate({ text: text.trim() });
+  };
+
+  const handleCancel = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+      toast({
+        title: "Cancelled",
+        description: "Analysis was cancelled.",
+      });
+    }
   };
 
   const handleCopy = async () => {
@@ -159,9 +178,10 @@ Generated on: ${new Date().toLocaleString()}
           <Textarea 
             value={text}
             onChange={(e) => setText(e.target.value)}
-            className="min-h-64 bg-background/50 border-border/50 focus:border-primary/50 resize-none" 
+            className="min-h-64 bg-background/50 rounded-2xl border border-[#333] dark:border-[#333] focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 resize-none placeholder:text-gray-500" 
             placeholder="Paste your text here to check if it was written by AI..."
             data-testid="input-text-analyze"
+            aria-label="Text to analyze for AI detection"
           />
           
           <div className="flex items-center justify-between mt-4">
@@ -170,15 +190,29 @@ Generated on: ${new Date().toLocaleString()}
               Upload File
             </Button>
             
-            <Button 
-              onClick={handleAnalyze}
-              disabled={analyzeMutation.isPending || !text.trim()}
-              className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
-              data-testid="button-analyze"
-            >
-              {analyzeMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Analyze Text
-            </Button>
+            <div className="flex gap-2">
+              {analyzeMutation.isPending && (
+                <Button 
+                  onClick={handleCancel}
+                  variant="outline"
+                  size="default"
+                  data-testid="button-cancel-analyze"
+                  aria-label="Cancel analysis"
+                >
+                  Cancel
+                </Button>
+              )}
+              <Button 
+                onClick={handleAnalyze}
+                disabled={analyzeMutation.isPending || !text.trim()}
+                className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
+                data-testid="button-analyze"
+                aria-label="Analyze text for AI content"
+              >
+                {analyzeMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Analyze Text
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -191,11 +225,27 @@ Generated on: ${new Date().toLocaleString()}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
+            role="status"
+            aria-live="polite"
           >
             <Card className="bg-card/50 backdrop-blur-sm border-border/50">
               <CardContent className="p-12 text-center">
-                <div className="inline-block">
-                  <Loader2 className="w-16 h-16 text-primary animate-spin" />
+                <div className="flex justify-center gap-2 mb-4">
+                  <motion.div
+                    className="w-3 h-3 bg-primary rounded-full"
+                    animate={{ y: [0, -10, 0] }}
+                    transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
+                  />
+                  <motion.div
+                    className="w-3 h-3 bg-primary rounded-full"
+                    animate={{ y: [0, -10, 0] }}
+                    transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
+                  />
+                  <motion.div
+                    className="w-3 h-3 bg-primary rounded-full"
+                    animate={{ y: [0, -10, 0] }}
+                    transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
+                  />
                 </div>
                 <p className="text-lg text-muted-foreground mt-4">Analyzing your text...</p>
               </CardContent>

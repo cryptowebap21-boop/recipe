@@ -6,15 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, Copy, Download, Upload, Loader2 } from "lucide-react";
+import { ChevronDown, Copy, Download, Upload, Loader2, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { historyStorage } from "@/lib/history";
 import type { AIDetectorRequest, AIDetectorResponse } from "@shared/schema";
+import HistoryPanel from "./history-panel";
 
 export default function AIDetector() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<AIDetectorResponse | null>(null);
   const [reasoningOpen, setReasoningOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const { toast } = useToast();
 
   const wordCount = text.trim().split(/\s+/).filter(word => word.length > 0).length;
@@ -26,6 +29,12 @@ export default function AIDetector() {
     },
     onSuccess: (data) => {
       setResult(data);
+      // Save to history
+      historyStorage.add({
+        type: 'detector',
+        input: text,
+        output: data
+      });
     },
     onError: (error) => {
       toast({
@@ -112,16 +121,39 @@ Generated on: ${new Date().toLocaleString()}
     }
   };
 
+  const handleLoadFromHistory = (item: any) => {
+    setText(item.input);
+    setResult(item.output);
+    setShowHistory(false);
+    toast({
+      title: "Loaded from History",
+      description: "Previous analysis loaded successfully.",
+    });
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="grid lg:grid-cols-3 gap-6">
+      <div className={showHistory ? "lg:col-span-2 space-y-6" : "lg:col-span-3 space-y-6"}>
       {/* Input Section */}
       <Card className="bg-card/50 backdrop-blur-sm border-border/50">
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
             <label className="text-lg font-semibold">Enter Text to Analyze</label>
-            <span className="text-sm text-muted-foreground" data-testid="text-word-count">
-              {wordCount} words
-            </span>
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowHistory(!showHistory)}
+                className="text-muted-foreground hover:text-foreground"
+                data-testid="button-toggle-history"
+              >
+                <History className="w-4 h-4 mr-2" />
+                {showHistory ? 'Hide' : 'Show'} History
+              </Button>
+              <span className="text-sm text-muted-foreground" data-testid="text-word-count">
+                {wordCount} words
+              </span>
+            </div>
           </div>
           
           <Textarea 
@@ -310,6 +342,20 @@ Generated on: ${new Date().toLocaleString()}
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
+      
+      {/* History Panel */}
+      {showHistory && (
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 20 }}
+          transition={{ duration: 0.3 }}
+          className="lg:col-span-1"
+        >
+          <HistoryPanel onSelectItem={handleLoadFromHistory} />
+        </motion.div>
+      )}
     </div>
   );
 }

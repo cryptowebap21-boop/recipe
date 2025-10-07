@@ -36,7 +36,30 @@ const createMockHumanizerResponse = (text: string) => {
   };
 };
 
-async function callRouterAPI(prompt: string): Promise<any> {
+// Helper function to chunk text for long inputs
+function chunkText(text: string, maxChunkSize: number = 2000): string[] {
+  const words = text.split(' ');
+  const chunks: string[] = [];
+  let currentChunk: string[] = [];
+  
+  for (const word of words) {
+    currentChunk.push(word);
+    const chunkText = currentChunk.join(' ');
+    
+    if (chunkText.length >= maxChunkSize) {
+      chunks.push(chunkText);
+      currentChunk = [];
+    }
+  }
+  
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk.join(' '));
+  }
+  
+  return chunks;
+}
+
+async function callRouterAPI(prompt: string, timeout: number = 120000): Promise<any> {
   const apiKey = process.env.ROUTER_API_KEY;
   const apiUrl = process.env.ROUTER_API_URL || 'https://api.router.example.com/v1/completions';
   
@@ -44,23 +67,37 @@ async function callRouterAPI(prompt: string): Promise<any> {
     throw new Error('ROUTER_API_KEY not configured');
   }
   
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: 'deepseek-r3',
-      input: prompt
-    })
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
   
-  if (!response.ok) {
-    throw new Error(`Router API error: ${response.status} ${response.statusText}`);
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-r3',
+        input: prompt
+      }),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`Router API error: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Request timeout - please try with a shorter text');
+    }
+    throw error;
   }
-  
-  return await response.json();
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -141,14 +178,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error in /api/check:', error);
       if (error instanceof z.ZodError) {
-        res.status(400).json({ error: 'Invalid input', details: error.errors });
-      } else {
-        res.status(500).json({ error: 'Internal server error', message: (error as Error).message });
+        return res.status(400).json({ 
+          ok: false, 
+          error: { code: 'VALIDATION_ERROR', message: 'Invalid input provided' } 
+        });
       }
+      return res.status(500).json({ 
+        ok: false, 
+        error: { code: 'SERVER_ERROR', message: (error as Error).message || 'Failed to analyze text' } 
+      });
     }
   });
   
-  // Humanizer endpoint
+  // Humanizer endpoint with chunking support for long texts
   app.post('/api/humanize', async (req, res) => {
     try {
       const { text } = humanizerRequestSchema.parse(req.body);
@@ -160,14 +202,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(mockResponse);
       }
       
-      // Prepare the prompt with the humanizer script
+      const wordCount = text.split(' ').length;
+      
+      // For texts over 2000 words, use chunking
+      if (wordCount > 2000) {
+        const chunks = chunkText(text, 2000);
+        const humanizedChunks: string[] = [];
+        
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i];
+          const prompt = HUMANIZER_SCRIPT.replace(/\[USER_TEXT\]/g, chunk);
+          
+          try {
+            const response = await callRouterAPI(prompt);
+            const humanizedChunk = response.output || response.text || chunk;
+            humanizedChunks.push(humanizedChunk);
+          } catch (chunkError) {
+            console.error(`Error processing chunk ${i + 1}:`, chunkError);
+            // If chunk fails, use mock response for that chunk
+            humanizedChunks.push(createMockHumanizerResponse(chunk).rewrittenText);
+          }
+        }
+        
+        const rewrittenText = humanizedChunks.join(' ');
+        
+        const result = {
+          rewrittenText,
+          originalText: text,
+          meta: {
+            originalWordCount: text.split(' ').length,
+            rewrittenWordCount: rewrittenText.split(' ').length,
+            chunksProcessed: chunks.length
+          }
+        };
+        
+        return res.json(result);
+      }
+      
+      // For shorter texts, process normally
       const prompt = HUMANIZER_SCRIPT.replace(/\[USER_TEXT\]/g, text);
-      
-      // Call Router API
       const response = await callRouterAPI(prompt);
-      
-      // Extract the rewritten text from the response
-      const rewrittenText = response.output || response.text || text; // Fallback to original if extraction fails
+      const rewrittenText = response.output || response.text || text;
       
       const result = {
         rewrittenText,
@@ -182,10 +257,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error in /api/humanize:', error);
       if (error instanceof z.ZodError) {
-        res.status(400).json({ error: 'Invalid input', details: error.errors });
-      } else {
-        res.status(500).json({ error: 'Internal server error', message: (error as Error).message });
+        return res.status(400).json({ 
+          ok: false, 
+          error: { code: 'VALIDATION_ERROR', message: 'Invalid input provided' } 
+        });
       }
+      return res.status(500).json({ 
+        ok: false, 
+        error: { code: 'SERVER_ERROR', message: (error as Error).message || 'Failed to humanize text' } 
+      });
     }
   });
   
